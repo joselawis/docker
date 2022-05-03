@@ -39,6 +39,7 @@ services:
   postgres:
     image: postgres
     container_name: postgres_database
+    restart: always
     ports:
       - 5434:5432
     volumes:
@@ -83,6 +84,7 @@ services:
   zookeeper:
     image: bitnami/zookeeper:3.5.9
     container_name: zookeeper
+    restart: always
     environment:
       ALLOW_ANONYMOUS_LOGIN: "yes"
     ports:
@@ -91,6 +93,7 @@ services:
   kafka:
     image: bitnami/kafka:2.8.1
     container_name: kafka
+    restart: always
     depends_on:
       - zookeeper
     ports:
@@ -106,6 +109,7 @@ services:
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:$ELK_VERSION
     container_name: elasticsearch
+    restart: always
     volumes:
       - ./src/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,z
       - elasticsearch_data:/usr/share/elasticsearch/data:rw              # Persistence data
@@ -142,6 +146,7 @@ services:
   kibana:
     image: docker.elastic.co/kibana/kibana:$ELK_VERSION
     container_name: kibana
+    restart: always
     volumes:
       - ./src/kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,z
     ports:
