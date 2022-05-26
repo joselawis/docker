@@ -193,7 +193,22 @@ services:
       - postgresql:/var/lib/postgresql
       - postgresql_data:/var/lib/postgresql/data
 
+  # https://www.cloudbees.com/blog/how-to-install-and-run-jenkins-with-docker-compose
+  jenkins:
+    image: jenkins/jenkins:lts
+    container_name: jenkins
+    restart: always
+    privileged: true
+    user: root
+    ports:
+      - 8080:8080
+      - 50000:50000
+    volumes:
+      - jenkins_data:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+
 volumes:
+  jenkins_data:
   sonarqube_conf:
   sonarqube_data:
   sonarqube_extensions:
