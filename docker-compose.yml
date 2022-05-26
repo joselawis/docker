@@ -156,8 +156,51 @@ services:
     depends_on:
       - elasticsearch
 
+  sonarqube:
+    image: sonarqube
+    container_name: sonarqube
+    restart: always
+    ports:
+      - "9000:9000"
+    networks:
+      - sonarnet
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://sonar_db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+      SONAR_SEARCH_JAVAADDITIONALOPTS: "-Dnode.store.allow_mmap=false"
+    volumes:
+      - sonarqube_conf:/opt/sonarqube/conf
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_extensions:/opt/sonarqube/extensions
+      - sonarqube_bundled-plugins:/opt/sonarqube/lib/bundled-plugins
+    depends_on:
+      - sonar_db
+  
+  sonar_db:
+    image: postgres
+    container_name: sonar_db
+    restart: always
+    ports:
+      - 5435:5432
+    networks:
+      - sonarnet
+    environment:
+      - POSTGRES_DB=sonar
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+    volumes:
+      - postgresql:/var/lib/postgresql
+      - postgresql_data:/var/lib/postgresql/data
+
 volumes:
+  sonarqube_conf:
+  sonarqube_data:
+  sonarqube_extensions:
+  sonarqube_bundled-plugins:
   mongodb_data_container:
+  postgresql:
+  postgresql_data:
   postgres_data:
     driver: local
   elasticsearch_data:
