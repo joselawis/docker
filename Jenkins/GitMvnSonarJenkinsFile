@@ -1,0 +1,99 @@
+pipeline {
+    tools {
+        maven 'M3'
+        jdk 'java8'
+    }
+
+    agent any
+
+    environment {
+        VERSION = '1.0'
+        GIT_URL_HELM_CHART = 'https://stash-oami.altia.es/scm/efca/data-exchange-tool.git'
+        CREDENTIALS_SCM = 'credentials-id-bitbucket'
+    }
+
+    stages {
+        stage('Preparation') {
+            steps {
+                script {
+                    sh 'echo "Starting CI/CD Pipeline. Version: ${VERSION}"'
+                    properties([parameters([
+                      string(defaultValue: 'develop',
+                            description: 'branch to verify',
+                            name: 'BRANCH')
+                      ])
+                    ])
+                }
+            }
+        }
+        stage('Checkout') {
+            steps {
+                // Get some code from a GitHub repository
+                checkout([$class: 'GitSCM', branches: [[name: params.BRANCH]],
+                                userRemoteConfigs: [[
+                                    credentialsId: "$CREDENTIALS_SCM",
+                                    url: "$GIT_URL_HELM_CHART"
+                                    ]]
+                                ])
+            }
+        }
+        stage('Build') {
+            steps {
+                // Run Maven on a Unix agent.
+                sh 'mvn -Dmaven.test.failure.ignore=true clean install'
+
+            // To run Maven on a Windows agent, use
+            // bat "mvn -Dmaven.test.failure.ignore=true clean package"
+            }
+        }
+        stage('Sonarqube') {
+            steps {
+                withSonarQubeEnv('Sonarqube') {
+                    // requires SonarQube Scanner for Maven 3.2+
+                    sh 'mvn org.sonarsource.scanner.maven:sonar-maven-plugin:3.7.0.1746:sonar -P sonar -Dsonar.java.source=8 -Dsonar.jenkins.branch=' + params.BRANCH.replace('/', '_') + ' -Dsonar.branch.name=' + params.BRANCH
+                }
+            }
+        }
+        stage("Quality gate") {
+            steps {
+                timeout(time: 2, unit: 'MINUTES') {
+                    retry(3) {
+                        script {
+                            def props = readProperties  file: 'target/sonar/report-task.txt'
+                            echo "properties=${props}"
+                            def sonarServerUrl=props['serverUrl']
+                            def ceTaskUrl= props['ceTaskUrl']
+                            def ceTask
+                            timeout(time: 1, unit: 'MINUTES') {
+                                waitUntil {
+                                    def response = httpRequest ceTaskUrl
+                                    ceTask = readJSON text: response.content
+                                    echo ceTask.toString()
+                                    return "SUCCESS".equals(ceTask["task"]["status"])
+                                }
+                            }
+                            timeout(time:2, unit: 'MINUTES'){
+                                def response2
+                                waitUntil {
+                                    response2 = httpRequest url : 
+                                    sonarServerUrl + "/api/qualitygates/project_status?analysisId=" + ceTask["task"]["analysisId"], 
+                                    authentication: 'jenkins_scanner',
+                                    validResponseCodes: '200:404'
+                                    return "200".equals(response2.status)
+                                }
+                                def qualitygate =  readJSON text: response2.content
+                                echo "qualityGate: " + qualitygate.toString()
+                                if ("ERROR".equals(qualitygate["projectStatus"]["status"])) {
+                                    error  "Quality Gate Failure"
+                                }
+                                if ("WARN".equals(qualitygate["projectStatus"]["status"])) {
+                                    currentBuild.result = 'UNSTABLE'
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
